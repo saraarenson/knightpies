@@ -23,3 +23,9 @@
 
 TOK_TYPE_MACRO, TOK_TYPE_STR, TOK_TYPE_MACRO = range(1,3+1) # match M1-macro.c
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
+
+def tokenize_file(f):
+    while True:
+        c = f.read(1)
+        if c=='':
+            break

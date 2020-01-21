@@ -21,8 +21,18 @@
 # You should have received a copy of the GNU General Public License
 # along with knightpies.  If not, see <http://www.gnu.org/licenses/>.
 
-TOK_TYPE_MACRO, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(1,3+1) # match M1-macro.c
+TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(1,3+1) # match M1-macro.c
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
+
+def read_atom(first_char, f):
+    buf = first_char
+    while True:
+        c = f.read(1)
+        if c in ('', "\n", "\t", " "):
+            break
+        else:
+            buf += c
+    return buf, c
 
 def read_until_newline_or_EOF(f):
     while True:
@@ -63,7 +73,15 @@ def tokenize_file(f):
             line_num+=1
         elif c == ' ' or c == '\t':
             pass
-
+        else:
+            atom, trailing_char = read_atom(c, f)
+            yield (TOK_TYPE_ATOM, atom, f.name, line_num)
+            if trailing_char == '':
+                break
+            elif trailing_char == '\n':
+                yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
+                line_num+=1
+                
     yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
 
 def main():

@@ -27,23 +27,41 @@ TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
 def read_until_newline_or_EOF(f):
     while True:
         c = f.read(1)
-        if c == '' or '\n':
-            break
+        if c == '' or c=='\n':
+            return c
 
 def tokenize_file(f):
     line_num = 1
+    string_char, string_buf = None, None
     while True:
         c = f.read(1)
         if c=='':
-            yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
+            break
+        # look for being in string stage first, as these are not
+        # interupted by newline or comments
+        elif (string_char != None):
+            if string_char == c:
+                yield (TOK_TYPE_STR, string_buf, f.name, line_num)
+                string_char, string_buf = None, None
+            else:
+                string_buf += c
+        elif c == '#' or c == ';':
+            c = read_until_newline_or_EOF(f)
+            if c!= '':
+                yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
+                line_num+=1
+            else:
+                break
+        elif (string_char == None) and (c == '"' or c == "'"):
+            string_char = c
+            string_buf  = ''
         elif c == '\n':
             yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
             line_num+=1
         elif c == ' ' or c == '\t':
             pass
-        elif c == '#' or c == ';':
-            read_until_newline_or_EOF(f)
-            yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
+
+    yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
 
 def main():
     from sys import argv

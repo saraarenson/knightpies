@@ -36,6 +36,9 @@ def tokenize_file(f):
     while True:
         c = f.read(1)
         if c=='':
+            if string_char != None:
+                raise Exception("unmatched %s quote in %s line %s",
+                                string_char, f.name, line_num)
             break
         # look for being in string stage first, as these are not
         # interupted by newline or comments

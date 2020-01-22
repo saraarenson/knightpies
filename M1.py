@@ -21,6 +21,8 @@
 # You should have received a copy of the GNU General Public License
 # along with knightpies.  If not, see <http://www.gnu.org/licenses/>.
 
+from pythoncompat import open_ascii, print_func
+
 TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(1,3+1) # match M1-macro.c
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
 
@@ -84,12 +86,61 @@ def tokenize_file(f):
                 
     yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
 
+def keep_dict_items_with_true_value(item):
+    key, value = item
+    return value # no need to boolean test because filter() will
+
+def get_symbols_used(file_objs, symbols):
+    symbols_used = {}
+    for f in file_objs:
+        f.seek(0) # return to start of file
+        next_atom_symbol = False
+        for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
+            if tok_type == TOK_TYPE_ATOM and tok_expr == 'DEFINE':
+                next_atom_symbol = True
+            elif tok_type == TOK_TYPE_ATOM and next_atom_symbol:
+                next_atom_symbol = False
+            elif tok_type == TOK_TYPE_ATOM and tok_expr in symbols:
+                symbols_used[tok_expr] = None
+    return list(symbols_used.keys())
+
 def main():
     from sys import argv
-    f = open(argv[1])
-    for tok in tokenize_file(f):
-        print(repr(tok))
-    f.close()
+    dump_defs_used = False
+    arguments = []
+    for arg in argv[1:]:
+        if arg == '--dump-defs-used':
+            dump_defs_used = True
+        else:
+            arguments.append(arg)
+
+    symbols = {}
+    file_objs = []
+    # first pass get the symbols
+    for filename in arguments:
+        f = open_ascii(filename)
+        file_objs.append(f)
+        next_atom_symbol = False
+        for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
+            if tok_type == TOK_TYPE_ATOM:
+                if next_atom_symbol:
+                    symbols[tok_expr] = None
+                    next_atom_symbol = False
+                elif tok_expr == 'DEFINE':
+                    next_atom_symbol = True
+
+    if dump_defs_used:
+        # second pass figure out which symbols are used
+        symbols_used = get_symbols_used(file_objs, symbols)
+        symbols_used.sort()
+        for symbol in symbols_used:
+            print_func(symbol)
+    # this will be the default case, outputting a processed version of the file
+    else:
+        pass
+
+    for f in file_objs:
+        f.close()
 
 if __name__ == '__main__':
     main()

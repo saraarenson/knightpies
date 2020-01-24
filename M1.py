@@ -21,6 +21,8 @@
 # You should have received a copy of the GNU General Public License
 # along with knightpies.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import generators # for yield keyword in python 2.2
+
 from pythoncompat import open_ascii, print_func, COMPAT_TRUE, COMPAT_FALSE
 
 TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(1,3+1) # match M1-macro.c

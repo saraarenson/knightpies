@@ -89,10 +89,6 @@ def tokenize_file(f):
                 
     yield (TOK_TYPE_NEWLINE, '\n', f.name, line_num)
 
-def keep_dict_items_with_true_value(item):
-    key, value = item
-    return value # no need to boolean test because filter() will
-
 def get_symbols_used(file_objs, symbols):
     symbols_used = {}
     for f in file_objs:

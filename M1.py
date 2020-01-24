@@ -21,10 +21,13 @@
 # You should have received a copy of the GNU General Public License
 # along with knightpies.  If not, see <http://www.gnu.org/licenses/>.
 
-from pythoncompat import open_ascii, print_func
+from pythoncompat import open_ascii, print_func, COMPAT_TRUE, COMPAT_FALSE
 
 TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(1,3+1) # match M1-macro.c
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
+
+class MultipleDefinitionsException(Exception):
+    pass
 
 def read_atom(first_char, f):
     buf = first_char
@@ -104,6 +107,28 @@ def get_symbols_used(file_objs, symbols):
                 symbols_used[tok_expr] = None
     return list(symbols_used.keys())
 
+def get_macros_defined_and_add_to_sym_table(f, symbols=None):
+    # start a new dictionary if one wasn't, putting this in the function
+    # definition would cause there to be one dictionary at build time
+    #
+    # we're using a dictionary as a backwards compatible set implementation
+    if symbols == None:
+        symbols = {}
+
+    next_atom_symbol = COMPAT_FALSE
+    for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
+        if tok_type == TOK_TYPE_ATOM:
+            if next_atom_symbol:
+                if tok_expr in symbols:
+                    raise MultipleDefinitionsException(
+                        "DEFINE %s on line %s of %s is a duplicate definition"
+                        % (tok_expr, tok_linenum, tok_filename) )
+                symbols[tok_expr] = None
+                next_atom_symbol = COMPAT_FALSE
+            elif tok_expr == 'DEFINE':
+                next_atom_symbol = COMPAT_TRUE
+    return symbols
+
 def main():
     from sys import argv
     dump_defs_used = False
@@ -120,14 +145,7 @@ def main():
     for filename in arguments:
         f = open_ascii(filename)
         file_objs.append(f)
-        next_atom_symbol = False
-        for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
-            if tok_type == TOK_TYPE_ATOM:
-                if next_atom_symbol:
-                    symbols[tok_expr] = None
-                    next_atom_symbol = False
-                elif tok_expr == 'DEFINE':
-                    next_atom_symbol = True
+        get_macros_defined_and_add_to_sym_table(f, symbols)
 
     if dump_defs_used:
         # second pass figure out which symbols are used

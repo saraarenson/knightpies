@@ -106,8 +106,8 @@ def get_symbols_used(file_objs, symbols):
     return list(symbols_used.keys())
 
 def get_macros_defined_and_add_to_sym_table(f, symbols=None):
-    # start a new dictionary if one wasn't, putting this in the function
-    # definition would cause there to be one dictionary at build time
+    # start a new dictionary if one wasn't provided, putting this in the
+    # function definition would cause there to be one dictionary at build time
     #
     # we're using a dictionary as a backwards compatible set implementation
     if symbols == None:

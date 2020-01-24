@@ -31,7 +31,7 @@ class MultipleDefinitionsException(Exception):
 
 def read_atom(first_char, f):
     buf = first_char
-    while True:
+    while COMPAT_TRUE:
         c = f.read(1)
         if c in ('', "\n", "\t", " "):
             break
@@ -40,7 +40,7 @@ def read_atom(first_char, f):
     return buf, c
 
 def read_until_newline_or_EOF(f):
-    while True:
+    while COMPAT_TRUE:
         c = f.read(1)
         if c == '' or c=='\n':
             return c
@@ -48,7 +48,7 @@ def read_until_newline_or_EOF(f):
 def tokenize_file(f):
     line_num = 1
     string_char, string_buf = None, None
-    while True:
+    while COMPAT_TRUE:
         c = f.read(1)
         if c=='':
             if string_char != None:
@@ -93,12 +93,12 @@ def get_symbols_used(file_objs, symbols):
     symbols_used = {}
     for f in file_objs:
         f.seek(0) # return to start of file
-        next_atom_symbol = False
+        next_atom_symbol = COMPAT_FALSE
         for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
             if tok_type == TOK_TYPE_ATOM and tok_expr == 'DEFINE':
-                next_atom_symbol = True
+                next_atom_symbol = COMPAT_TRUE
             elif tok_type == TOK_TYPE_ATOM and next_atom_symbol:
-                next_atom_symbol = False
+                next_atom_symbol = COMPAT_FALSE
             elif tok_type == TOK_TYPE_ATOM and tok_expr in symbols:
                 symbols_used[tok_expr] = None
     return list(symbols_used.keys())
@@ -127,11 +127,11 @@ def get_macros_defined_and_add_to_sym_table(f, symbols=None):
 
 def main():
     from sys import argv
-    dump_defs_used = False
+    dump_defs_used = COMPAT_FALSE
     arguments = []
     for arg in argv[1:]:
         if arg == '--dump-defs-used':
-            dump_defs_used = True
+            dump_defs_used = COMPAT_TRUE
         else:
             arguments.append(arg)
 

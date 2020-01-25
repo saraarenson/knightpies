@@ -28,6 +28,7 @@ from pythoncompat import \
 
 TOK_TYPE_MACRO, TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(4)
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
+MACRO_NAME, MACRO_VALUE = 0, 1
 
 class MultipleDefinitionsException(Exception):
     pass
@@ -95,13 +96,9 @@ def tokenize_file(f):
 def get_symbols_used(file_objs, symbols):
     symbols_used = {}
     for f in file_objs:
-        next_atom_symbol = COMPAT_FALSE
-        for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
-            if tok_type == TOK_TYPE_ATOM and tok_expr == 'DEFINE':
-                next_atom_symbol = COMPAT_TRUE
-            elif tok_type == TOK_TYPE_ATOM and next_atom_symbol:
-                next_atom_symbol = COMPAT_FALSE
-            elif tok_type == TOK_TYPE_ATOM and tok_expr in symbols:
+        for tok_type, tok_expr, tok_filename, tok_linenum in \
+            upgrade_token_stream_to_include_macro(tokenize_file(f)):
+            if tok_type == TOK_TYPE_ATOM and tok_expr in symbols:
                 symbols_used[tok_expr] = None
     return list(symbols_used.keys())
 
@@ -118,54 +115,16 @@ def get_macros_defined_and_add_to_sym_table(f, symbols=None):
     if symbols == None:
         symbols = {}
 
-    next_atom_symbol = COMPAT_FALSE
-    next_atom_macro_value = COMPAT_FALSE
-    for tok_type, tok_expr, tok_filename, tok_linenum in tokenize_file(f):
-        if tok_type == TOK_TYPE_ATOM:
-            if next_atom_symbol:
-                assert not next_atom_macro_value
-                if tok_expr in symbols:
-                    raise MultipleDefinitionsException(
-                        "DEFINE %s on line %s of %s is a duplicate definition"
-                        % (tok_expr, tok_linenum, tok_filename) )
-                symbols[tok_expr] = None
-                last_symbol = tok_expr
-                next_atom_symbol = COMPAT_FALSE
-                next_atom_macro_value = COMPAT_TRUE
-                # assert not next_atom_symbol # redundant assertion/
-            elif next_atom_macro_value:
-                symbols[last_symbol] = tok_expr
-                next_atom_macro_value = COMPAT_FALSE
-                assert not next_atom_symbol
-            elif tok_expr == 'DEFINE':
-                next_atom_symbol = COMPAT_TRUE
-                assert not next_atom_macro_value
-        elif tok_type == TOK_TYPE_STR:
-            if next_atom_symbol:
-                raise Exception(
-                    "Using a string for macro name %s not supported "
-                    "line %s from %s" % (tok_expr, tok_linenum, tok_filename)
-                )
-            elif next_atom_macro_value:
-                symbols[last_symbol] = process_string_token_as_macro_value(
-                    tok_expr)
-                next_atom_macro_value = COMPAT_FALSE
-                # redundant assertion. See if next_atom_symbol statement above
-                # assert not next_atom_symbol
-
-    # if the file ends with just DEFINE, that's a problem
-    if next_atom_symbol:
-        assert not next_atom_macro_value
-        raise Exception(
-            "%s ended with uncompleted DEFINE" % tok_filename
-        )
-    # if the file ends with DEFINE, a macro name, but no value
-    elif next_atom_macro_value:
-        raise Exception(
-            "%s ended with uncompleted DEFINE" % tok_filename
-        )
+    for tok in upgrade_token_stream_to_include_macro(tokenize_file(f)):
+        if tok[TOK_TYPE] == TOK_TYPE_MACRO:
+            tok_type, tok_expr, tok_filename, tok_linenum = tok
+            macro_name = tok_expr[MACRO_NAME][TOK_EXPR]
+            if macro_name in symbols:
+                raise MultipleDefinitionsException(
+                    "DEFINE %s on line %s of %s is a duplicate definition"
+                    % (macro_name, tok_linenum, tok_filename) )
+            symbols[macro_name] = tok_expr[MACRO_VALUE]
     return symbols
-
 
 def upgrade_token_stream_to_include_macro(input_tokens):
     next_atom_symbol = COMPAT_FALSE
@@ -230,31 +189,6 @@ def upgrade_token_stream_to_include_macro(input_tokens):
         else:
             yield tok
 
-def filter_define_out_from_token_stream(input_tokens):
-    # yuck, there's a better way to do this with next() for look ahead
-    # and catching StopIteration
-    next_atom_symbol = COMPAT_FALSE
-    next_atom_macro_value = COMPAT_FALSE    
-    for tok in input_tokens:
-        tok_type, tok_expr, tok_filename, tok_linenum = tok
-        if tok_type == TOK_TYPE_ATOM:
-            if next_atom_symbol:
-                assert not next_atom_macro_value
-                next_atom_symbol = COMPAT_FALSE
-                next_atom_macro_value = COMPAT_TRUE
-            elif next_atom_macro_value:
-                assert not next_atom_symbol
-                next_atom_macro_value = COMPAT_FALSE
-            elif tok_expr == 'DEFINE':
-                next_atom_symbol = COMPAT_TRUE
-                assert not next_atom_macro_value
-            else:
-                yield tok
-        else:
-            assert not next_atom_symbol
-            assert not next_atom_macro_value
-            yield tok
-
 def process_and_output_string_expr(output_file, string_expr):
     # remove leading and trailing quote chars
     for c in string_expr[1:-1]:
@@ -275,15 +209,15 @@ def output_regular_atom(output_file, atomstr):
 def output_file_from_tokens_with_macros_sub_and_string_sub(
     input_tokens, output_file, symbols):
 
-    for tok_type, tok_expr, tok_filename, tok_linenum in \
-        filter_define_out_from_token_stream(input_tokens):
+    for tok_type, tok_expr, tok_filename, tok_linenum in input_tokens:
         if tok_type == TOK_TYPE_ATOM:
-            assert tok_expr != "DEFINE" # these have been filtered
             # fixme, whitespace not needed if last thing out was newline
             output_file.write(' ')
             if tok_expr in symbols: # exact match only
                 output_file.write(' ')
-                output_file.write(symbols[tok_expr])
+                macro_value_token = symbols[tok_expr]
+                assert macro_value_token[TOK_TYPE] == TOK_TYPE_ATOM
+                output_file.write( macro_value_token[TOK_EXPR] )
             else:
                 output_regular_atom(output_file, tok_expr)
         elif tok_type == TOK_TYPE_NEWLINE:
@@ -322,7 +256,8 @@ def main():
     else:
         for f in file_objs:
             output_file_from_tokens_with_macros_sub_and_string_sub(
-                tokenize_file(f), stdout, symbols)
+                upgrade_token_stream_to_include_macro(tokenize_file(f)),
+                stdout, symbols)
                 
     for f in file_objs:
         f.close()

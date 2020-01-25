@@ -26,6 +26,15 @@ from __future__ import generators # for yield keyword in python 2.2
 from pythoncompat import \
     open_ascii, print_func, COMPAT_TRUE, COMPAT_FALSE
 
+def int_as_hex(value, byte_count, big_endian=COMPAT_TRUE):
+    buf = ''
+    if not big_endian:
+        raise Exception(
+            "int_as_hex() support for little endian isn't ready yet")
+    for i, x in enumerate(range( 8*(byte_count-1), -8, -8)):
+        buf += '%.2x' % ( (value>>x) & 0xff )
+    return buf
+
 TOK_TYPE_MACRO, TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(4)
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
 MACRO_NAME, MACRO_VALUE = 0, 1
@@ -196,17 +205,23 @@ def process_and_output_string_expr(output_file, string_expr):
 
 def output_regular_atom(output_file, atomstr):
     if atomstr[0:2] == '0x': # atom's prefixed with 0x are hex
-        hexatom = atomstr[2:]
-        hexatom_list = list(reversed(hexatom))
-        a = int(''.join(hexatom_list), 16) # endianness of this needs a look
-        output_file.write('%.4x' % a) # endianness of this needs a look
+        try:
+            hexatom_int = int(atomstr[2:], 16)
+        except ValueError:
+            raise Exception("%s can't be parsed to hex" % atomstr)
+        output_file.write( int_as_hex(hexatom_int, 2, big_endian=COMPAT_TRUE) )
     elif atomstr[0] in (':', '@'):
         if atomstr[0] == '@':
             output_file.write(' ')
         output_file.write(atomstr)
     else:
         # other regular atoms are treated as decimal values
-        output_file.write( '%.2x' % int(atomstr) )
+        try:
+            a = int(atomstr)
+        except ValueError:
+            raise Exception("%s can't be parsed to decimal" % atomstr)
+        output_file.write(
+            int_as_hex(a, 2, big_endian=COMPAT_TRUE) )
         
 def output_file_from_tokens_with_macros_sub_and_string_sub(
     input_tokens, output_file, symbols):

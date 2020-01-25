@@ -201,6 +201,8 @@ def output_regular_atom(output_file, atomstr):
         a = int(''.join(hexatom_list), 16) # endianness of this needs a look
         output_file.write('%.4x' % a) # endianness of this needs a look
     elif atomstr[0] in (':', '@'):
+        if atomstr[0] == '@':
+            output_file.write(' ')
         output_file.write(atomstr)
     else:
         # other regular atoms are treated as decimal values
@@ -211,10 +213,7 @@ def output_file_from_tokens_with_macros_sub_and_string_sub(
 
     for tok_type, tok_expr, tok_filename, tok_linenum in input_tokens:
         if tok_type == TOK_TYPE_ATOM:
-            # fixme, whitespace not needed if last thing out was newline
-            output_file.write(' ')
             if tok_expr in symbols: # exact match only
-                output_file.write(' ')
                 macro_value_token = symbols[tok_expr]
                 assert macro_value_token[TOK_TYPE] == TOK_TYPE_ATOM
                 output_file.write( macro_value_token[TOK_EXPR] )

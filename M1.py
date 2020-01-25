@@ -26,7 +26,7 @@ from __future__ import generators # for yield keyword in python 2.2
 from pythoncompat import \
     open_ascii, print_func, COMPAT_TRUE, COMPAT_FALSE
 
-TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(1,3+1) # match M1-macro.c
+TOK_TYPE_MACRO, TOK_TYPE_ATOM, TOK_TYPE_STR, TOK_TYPE_NEWLINE = range(4)
 TOK_TYPE, TOK_EXPR, TOK_FILENAME, TOK_LINENUM = range(4)
 
 class MultipleDefinitionsException(Exception):
@@ -166,11 +166,73 @@ def get_macros_defined_and_add_to_sym_table(f, symbols=None):
         )
     return symbols
 
+
+def upgrade_token_stream_to_include_macro(input_tokens):
+    next_atom_symbol = COMPAT_FALSE
+    next_atom_macro_value = COMPAT_FALSE
+    input_tokens_iter = iter(input_tokens)
+    while COMPAT_TRUE:
+        try:
+            tok = next(input_tokens_iter)
+        except StopIteration:
+            break
+
+        tok_type, tok_expr, tok_filename, tok_linenum = tok
+        # if we have a DEFINE atom we're going to yield a TOK_TYPE_MACRO
+        # based on the next two tokens
+        if tok_type == TOK_TYPE_ATOM and tok_expr == "DEFINE":
+            # look ahead to token after DEFINE
+            try:
+                macro_name_tok = next(input_tokens_iter)
+            except StopIteration:
+                raise Exception(
+                    "%s ended with uncompleted DEFINE" % tok_filename
+                )
+
+            # enforce next token after DEFINE atom must be an atom,
+            # not newline or string
+            if macro_name_tok[TOK_TYPE] == TOK_TYPE_STR:
+                raise Exception(
+                    "Using a string for macro name %s not supported "
+                    "line %s from %s" % (
+                        tok_expr, tok_linenum, tok_filename) )
+            elif macro_name_tok[TOK_TYPE] == TOK_TYPE_NEWLINE:
+                raise Exception(
+                    "You can not have a newline in a DEFINE "
+                    "line %s from %s" % (
+                        tok_expr, tok_linenum, tok_filename) )
+            assert macro_name_tok[TOK_TYPE] == TOK_TYPE_ATOM
+
+            # look ahead to second token after DEFINE
+            try:
+                macro_value_tok = next(input_tokens_iter)
+            except StopIteration:
+                raise Exception(
+                    "%s ended with uncompleted DEFINE" % tok_filename
+                )
+
+            # enforce second token after DEFINE atom must be atom or string
+            if macro_value_tok[TOK_TYPE] == TOK_TYPE_NEWLINE:
+                raise Exception(
+                    "You can not have a newline in a DEFINE "
+                    "line %s from %s" % (
+                        tok_expr, tok_linenum, tok_filename) )
+
+            # make a macro type token which has a two element tuple
+            # of name token and value token as the TOK_EXPR component
+            yield (
+                TOK_TYPE_MACRO,
+                (macro_name_tok, macro_value_tok),
+                tok_filename, tok_linenum
+            )
+        # else any atom token that's not DEFINE and two tokens after it
+        # or any str or newline token, we just pass it through
+        else:
+            yield tok
+
 def filter_define_out_from_token_stream(input_tokens):
     # yuck, there's a better way to do this with next() for look ahead
     # and catching StopIteration
-    # should rewrite the stream to have TOK_TYPE_DEFINE as a replacement
-    # for three original ATOM tokens
     next_atom_symbol = COMPAT_FALSE
     next_atom_macro_value = COMPAT_FALSE    
     for tok in input_tokens:

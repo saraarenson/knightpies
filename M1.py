@@ -224,7 +224,7 @@ def output_file_from_tokens_with_macros_sub_and_string_sub(
             output_file.write('\n')
         else: # token_type == TOK_TYPE_STR
             process_and_output_string_expr(
-                binary_output_file, tok_expr
+                output_file, tok_expr
                 )
 
 def main():

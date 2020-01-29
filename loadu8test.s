@@ -1,8 +1,8 @@
 FALSE R1
-LOADU8 R0 R1 @testdata
+LOADU8 R0 R1 $testdata
 FPUTC
 ADDUI R1 R1 1
-LOADU8 R0 R1 @testdata
+LOADU8 R0 R1 $testdata
 FPUTC
 HALT
 :testdata

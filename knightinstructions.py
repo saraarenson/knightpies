@@ -733,8 +733,10 @@ def LOAD(vm, c):
 def LOAD8(vm, c):
     mem, register_file, reg0, reg1, raw_immediate, next_ip = \
         get_args_for_2OPI(vm, c)
-    mask = 2**(register_file.itemsize * 8)-1
-    register_file[reg0] = mem[register_file[reg1]+interpret_sixteenbits_as_signed(raw_immediate)]
+    mask = (2**(regier_file.itemsize*BITS_PER_BYTE))-1
+    register_file[reg0] = interpret_nbits_as_signed(
+        mem[ (register_file[reg1]+raw_immediate) & mask ],
+        BITS_PER_BYTE) & mask
     return next_ip
 
 def LOADU8(vm, c):
